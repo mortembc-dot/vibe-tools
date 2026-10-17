@@ -650,7 +650,7 @@ function getCatMeta(type, name) {
 // ── Persistence ──
 function save() {
   try {
-    localStorage.setItem('myLedger_v4', JSON.stringify({
+    localStorage.setItem('myLedger_v5', JSON.stringify({
       transactions: state.transactions,
       accounts:     state.accounts,
       expenseCats:  state.expenseCats,
@@ -662,7 +662,7 @@ function save() {
 }
 function load() {
   try {
-    const d = JSON.parse(localStorage.getItem('myLedger_v4') || 'null');
+    const d = JSON.parse(localStorage.getItem('myLedger_v5') || 'null');
     if (d) {
       state.transactions = Array.isArray(d.transactions) ? d.transactions : [];
       state.accounts     = Array.isArray(d.accounts)     ? d.accounts     : JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
@@ -1134,7 +1134,6 @@ function init() {
   load();
   applyTheme();
   $('dateInput').value = new Date().toISOString().slice(0,10);
-  if (state.transactions.length === 0) seedSamples();
   save();
   buildMonthOptions();
   renderAccountSelect();

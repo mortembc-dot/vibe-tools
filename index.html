@@ -471,11 +471,11 @@ body {
           <input type="date" id="dateInput">
         </div>
         <div class="field">
-          <label>帳戶</label>
+          <label id="accountLabel">帳戶</label>
           <select id="accountInput"></select>
         </div>
-        <div class="field">
-          <label>付款人</label>
+        <div class="field" id="payerField">
+          <label id="payerLabel">付款人</label>
           <input type="text" id="payerInput" list="payerList" placeholder="我" maxlength="20" autocomplete="off">
           <datalist id="payerList"></datalist>
         </div>
@@ -502,6 +502,7 @@ body {
         <button class="chart-tab active" id="tabExp" onclick="setChartTab('expense')">支出分佈</button>
         <button class="chart-tab" id="tabInc" onclick="setChartTab('income')">收支比較</button>
         <button class="chart-tab" id="tabPayer" onclick="setChartTab('payer')">付款人</button>
+        <button class="chart-tab" id="tabAccount" onclick="setChartTab('account')">帳戶</button>
       </div>
       <div id="chartArea">
         <div class="chart-holder"><canvas id="mainChart"></canvas></div>
@@ -510,6 +511,12 @@ body {
       <div id="payerTableArea" hidden>
         <table class="payer-tbl" id="payerTable">
           <thead><tr><th>付款人</th><th>筆數</th><th style="text-align:right">支出金額</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="accountTableArea" hidden>
+        <table class="payer-tbl" id="accountTable">
+          <thead><tr><th>帳戶</th><th>筆數</th><th style="text-align:right">支出金額</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -773,6 +780,8 @@ function setType(t) {
   state.currentCat  = null;
   $('btnExpense').className = 'type-btn' + (t==='expense' ? ' active-expense' : '');
   $('btnIncome').className  = 'type-btn' + (t==='income'  ? ' active-income'  : '');
+  $('accountLabel').textContent      = t === 'income' ? '收款帳戶' : '帳戶';
+  $('payerField').style.display       = t === 'income' ? 'none' : '';
   renderCatGrid();
 }
 
@@ -940,6 +949,46 @@ function renderPayerTable() {
   });
 }
 
+function renderAccountTable() {
+  const txs = state.transactions.filter(t => t.date.slice(0,7) === state.selectedMonth && t.type === 'expense');
+  const map = {};
+  txs.forEach(t => {
+    const a = t.account || '未知';
+    if (!map[a]) map[a] = { total: 0, count: 0 };
+    map[a].total += t.amount;
+    map[a].count++;
+  });
+  const entries = Object.entries(map).sort((a,b) => b[1].total - a[1].total);
+  const maxAmt = entries.length ? entries[0][1].total : 1;
+  const ACC_ICON = { cash:'💵', bank:'🏦', credit:'💳' };
+  const tbody = $('accountTable').querySelector('tbody');
+  tbody.innerHTML = '';
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-msg" style="text-align:center;padding:20px 0"><span>📊</span> 本月尚無支出資料</td></tr>`;
+    return;
+  }
+  entries.forEach(([name, data]) => {
+    const accMeta = state.accounts.find(a => a.name === name);
+    const icon = accMeta ? (ACC_ICON[accMeta.type] || '💰') : '💰';
+    const pct = Math.round((data.total / maxAmt) * 100);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="payer-cell-name">
+          <div class="payer-avatar" style="font-size:1rem">${icon}</div>
+          <div>
+            <div style="font-size:0.88rem;font-weight:600">${name}</div>
+            <div class="payer-bar-wrap"><div class="payer-bar" style="width:${pct}%"></div></div>
+          </div>
+        </div>
+      </td>
+      <td class="payer-count" style="text-align:center">${data.count} 筆</td>
+      <td class="payer-amount">${fmt(data.total)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
 // ── Chart ──
 function isDark() {
   const dt = document.documentElement.getAttribute('data-theme');
@@ -948,18 +997,17 @@ function isDark() {
 }
 function setChartTab(tab) {
   state.chartTab = tab;
-  $('tabExp').className   = 'chart-tab' + (tab==='expense' ? ' active' : '');
-  $('tabInc').className   = 'chart-tab' + (tab==='income'  ? ' active' : '');
-  $('tabPayer').className = 'chart-tab' + (tab==='payer'   ? ' active' : '');
-  if (tab === 'payer') {
-    $('chartArea').hidden      = true;
-    $('payerTableArea').hidden = false;
-    renderPayerTable();
-  } else {
-    $('chartArea').hidden      = false;
-    $('payerTableArea').hidden = true;
-    renderChart();
-  }
+  $('tabExp').className     = 'chart-tab' + (tab==='expense'  ? ' active' : '');
+  $('tabInc').className     = 'chart-tab' + (tab==='income'   ? ' active' : '');
+  $('tabPayer').className   = 'chart-tab' + (tab==='payer'    ? ' active' : '');
+  $('tabAccount').className = 'chart-tab' + (tab==='account'  ? ' active' : '');
+  const isChart = tab === 'expense' || tab === 'income';
+  $('chartArea').hidden       = !isChart;
+  $('payerTableArea').hidden  = tab !== 'payer';
+  $('accountTableArea').hidden = tab !== 'account';
+  if (tab === 'payer')   renderPayerTable();
+  else if (tab === 'account') renderAccountTable();
+  else renderChart();
 }
 function renderChart() {
   const txs = state.transactions.filter(t => t.date.slice(0,7) === state.selectedMonth);
@@ -1155,6 +1203,7 @@ function render() {
   renderSummary();
   renderTxList();
   if (state.chartTab === 'payer') renderPayerTable();
+  else if (state.chartTab === 'account') renderAccountTable();
   else renderChart();
 }
 

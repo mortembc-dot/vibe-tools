@@ -1,0 +1,1151 @@
+<title>記帳本</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+/* Layout: sticky header → scrollable content → fixed bottom nav */
+:root {
+  --bg: #f5f3ff;
+  --surface: #ffffff;
+  --fg: #1a1535;
+  --fg-muted: #7a759f;
+  --border: #e2ddf7;
+  --income: #16a34a;
+  --income-light: #dcfce7;
+  --expense: #e11d48;
+  --expense-light: #ffe4e6;
+  --accent: #7c3aed;
+  --accent-soft: #ede9fe;
+  --hdr-a: #5b21b6;
+  --hdr-b: #7c3aed;
+  --nav-h: 64px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0b1a; --surface: #16122e; --fg: #ede9ff; --fg-muted: #9490c0;
+    --border: #2a254d; --income: #4ade80; --income-light: #052e16;
+    --expense: #fb7185; --expense-light: #200a12; --accent: #a78bfa;
+    --accent-soft: #1e1444; --hdr-a: #3b0764; --hdr-b: #4c1d95;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0b1a; --surface: #16122e; --fg: #ede9ff; --fg-muted: #9490c0;
+  --border: #2a254d; --income: #4ade80; --income-light: #052e16;
+  --expense: #fb7185; --expense-light: #200a12; --accent: #a78bfa;
+  --accent-soft: #1e1444; --hdr-a: #3b0764; --hdr-b: #4c1d95;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: 'Noto Sans TC', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Page visibility ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Header ── */
+.app-header {
+  background: linear-gradient(135deg, var(--hdr-a) 0%, var(--hdr-b) 100%);
+  color: #fff;
+  padding: 18px max(16px, env(safe-area-inset-right,0px)) 20px max(16px, env(safe-area-inset-left,0px));
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+}
+.header-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px; gap: 10px;
+}
+.app-name { font-family:'Nunito',sans-serif; font-size:1.15rem; font-weight:900; letter-spacing:-0.01em; }
+.header-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.hdr-btn {
+  background:rgba(255,255,255,0.18); border:1.5px solid rgba(255,255,255,0.32);
+  border-radius:10px; color:#fff; cursor:pointer; font-size:0.82rem;
+  font-family:'Nunito',sans-serif; font-weight:700; padding:6px 10px;
+  transition:background 0.14s;
+}
+.hdr-btn:hover { background:rgba(255,255,255,0.28); }
+#monthPicker {
+  background:rgba(255,255,255,0.18); border:1.5px solid rgba(255,255,255,0.32);
+  border-radius:10px; color:#fff; cursor:pointer; font-family:'Nunito',sans-serif;
+  font-size:0.82rem; font-weight:700; padding:6px 10px; outline:none;
+}
+#monthPicker option { background:#3b0764; color:#fff; }
+.balance-block { text-align:center; }
+.balance-label { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.12em; opacity:0.75; margin-bottom:3px; }
+.balance-amount { font-family:'Nunito',sans-serif; font-size:2.2rem; font-weight:900; font-variant-numeric:tabular-nums; letter-spacing:-0.02em; }
+
+/* ── Settings header (simpler) ── */
+.settings-header {
+  background: linear-gradient(135deg, var(--hdr-a) 0%, var(--hdr-b) 100%);
+  color: #fff;
+  padding: 20px max(16px, env(safe-area-inset-right,0px)) 20px max(16px, env(safe-area-inset-left,0px));
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.settings-title { font-family:'Nunito',sans-serif; font-size:1.2rem; font-weight:900; }
+
+/* ── Summary strip ── */
+.summary-strip {
+  display:flex; gap:10px;
+  padding:14px max(16px, env(safe-area-inset-right,0px)) 0 max(16px, env(safe-area-inset-left,0px));
+}
+.summ-card {
+  flex:1; background:var(--surface); border-radius:14px; padding:12px 14px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.07);
+}
+.summ-label { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.09em; color:var(--fg-muted); margin-bottom:4px; }
+.summ-amount { font-family:'Nunito',sans-serif; font-size:1.1rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.summ-amount.inc { color:var(--income); }
+.summ-amount.exp { color:var(--expense); }
+
+/* ── Page body ── */
+.page-body {
+  padding: 16px max(16px, env(safe-area-inset-right,0px)) calc(var(--nav-h) + 24px + env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px));
+  display:flex; flex-direction:column; gap:16px;
+}
+
+/* ── Bottom nav ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-top: 1.5px solid var(--border);
+  display: flex;
+  z-index: 20;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fg-muted);
+  transition: color 0.16s;
+  padding: 8px;
+  font-family: 'Nunito', sans-serif;
+}
+.nav-btn .nav-icon { font-size: 1.4rem; transition: transform 0.16s; }
+.nav-btn .nav-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; }
+.nav-btn.active { color: var(--accent); }
+.nav-btn.active .nav-icon { transform: scale(1.12); }
+
+/* ── Panels ── */
+.panel { background:var(--surface); border-radius:20px; padding:18px; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+.panel-title { font-family:'Nunito',sans-serif; font-size:0.75rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--fg-muted); margin-bottom:14px; }
+
+/* ── Toast ── */
+.toast {
+  position:fixed; bottom:calc(var(--nav-h) + 16px + env(safe-area-inset-bottom,0px));
+  left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--fg); color:var(--surface); border-radius:12px;
+  padding:10px 18px; font-family:'Nunito',sans-serif; font-size:0.88rem; font-weight:700;
+  opacity:0; transition:all 0.24s; z-index:100; white-space:nowrap; pointer-events:none;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ── Type toggle ── */
+.type-toggle {
+  display:flex; background:var(--bg); border-radius:12px; padding:3px; gap:3px; margin-bottom:14px;
+}
+.type-btn {
+  flex:1; border:none; background:transparent; border-radius:10px; padding:9px;
+  font-family:'Nunito',sans-serif; font-size:0.9rem; font-weight:700; cursor:pointer;
+  color:var(--fg-muted); transition:all 0.16s;
+}
+.type-btn.active-income  { background:var(--income-light); color:var(--income); }
+.type-btn.active-expense { background:var(--expense-light); color:var(--expense); }
+
+/* ── Form fields ── */
+.field-group { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+@media (max-width:420px) { .field-group { grid-template-columns:1fr; } }
+.field { display:flex; flex-direction:column; gap:4px; }
+.field label { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--fg-muted); }
+.field input, .field select, .ctrl-input, .ctrl-select {
+  background:var(--bg); border:2px solid var(--border); border-radius:10px;
+  color:var(--fg); font-family:'Noto Sans TC',sans-serif; font-size:0.9rem;
+  padding:8px 11px; outline:none; transition:border-color 0.15s; width:100%;
+}
+.field input:focus, .field select:focus, .ctrl-input:focus, .ctrl-select:focus { border-color:var(--accent); }
+
+/* ── Category chips (form) ── */
+.field-label { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--fg-muted); margin-bottom:8px; }
+.cat-grid { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.cat-chip {
+  border:2px solid var(--border); border-radius:20px; background:var(--bg);
+  color:var(--fg-muted); cursor:pointer; font-family:'Nunito',sans-serif;
+  font-size:0.8rem; font-weight:700; padding:5px 12px; transition:transform 0.12s;
+}
+.cat-chip:hover { transform:translateY(-1px); }
+.cat-chip.sel { border-color:transparent; color:#fff; }
+
+/* ── Note field ── */
+.note-wrap { margin-bottom:14px; }
+.note-wrap label { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--fg-muted); display:block; margin-bottom:4px; }
+#noteInput {
+  background:var(--bg); border:2px solid var(--border); border-radius:10px;
+  color:var(--fg); font-family:'Noto Sans TC',sans-serif; font-size:0.9rem;
+  padding:8px 11px; outline:none; width:100%; resize:none; height:54px;
+  transition:border-color 0.15s;
+}
+#noteInput:focus { border-color:var(--accent); }
+
+/* ── Submit ── */
+.btn-submit {
+  width:100%; background:linear-gradient(135deg,var(--hdr-a),var(--hdr-b));
+  border:none; border-radius:12px; color:#fff; cursor:pointer;
+  font-family:'Nunito',sans-serif; font-size:1rem; font-weight:800; padding:12px;
+  box-shadow:0 4px 16px rgba(124,58,237,0.32); transition:transform 0.14s,box-shadow 0.14s;
+}
+.btn-submit:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(124,58,237,0.44); }
+.btn-submit:active { transform:translateY(0); }
+
+/* ── Transaction list ── */
+.tx-list { display:flex; flex-direction:column; }
+.tx-item {
+  display:flex; align-items:center; gap:11px; padding:9px 0;
+  animation:fadeSlide 0.22s ease; border-bottom:1px solid var(--border);
+}
+.tx-item:last-child { border-bottom:none; }
+@keyframes fadeSlide { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+.tx-icon { width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0; }
+.tx-info { flex:1;min-width:0; }
+.tx-top { display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.tx-note { font-size:0.9rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px; }
+.tx-badge { font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;border-radius:6px;padding:2px 6px;flex-shrink:0; }
+.tx-meta { font-size:0.7rem;color:var(--fg-muted);margin-top:2px; }
+.tx-right { display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0; }
+.tx-amount { font-family:'Nunito',sans-serif;font-size:0.98rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap; }
+.tx-amount.inc { color:var(--income); }
+.tx-amount.exp { color:var(--expense); }
+.btn-del { background:none;border:none;color:var(--fg-muted);cursor:pointer;font-size:0.9rem;padding:6px;border-radius:8px;transition:all 0.14s;flex-shrink:0; }
+.btn-del:hover { background:var(--expense-light);color:var(--expense); }
+.empty-msg { text-align:center;padding:28px 16px;color:var(--fg-muted);font-size:0.88rem; }
+.empty-msg .e { font-size:2rem;display:block;margin-bottom:8px; }
+
+/* ── Chart ── */
+.chart-tabs { display:flex;gap:6px;margin-bottom:16px; }
+.chart-tab { border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--fg-muted);cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.8rem;font-weight:700;padding:6px 12px;transition:all 0.14s; }
+.chart-tab.active { background:var(--accent);border-color:var(--accent);color:#fff; }
+.chart-holder { max-width:300px;margin:0 auto; }
+.chart-legend { display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;margin-top:14px; }
+.legend-item { display:flex;align-items:center;gap:5px;font-size:0.76rem;color:var(--fg-muted); }
+.legend-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
+
+/* ── Payer table ── */
+.payer-tbl { width:100%;border-collapse:collapse;margin-top:4px; }
+.payer-tbl th { font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.09em;color:var(--fg-muted);padding:0 0 10px;text-align:left; }
+.payer-tbl th:last-child { text-align:right; }
+.payer-tbl td { padding:8px 0;border-bottom:1px solid var(--border);vertical-align:middle; }
+.payer-tbl tr:last-child td { border-bottom:none; }
+.payer-cell-name { display:flex;align-items:center;gap:8px; }
+.payer-avatar { width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-size:0.78rem;font-weight:800;flex-shrink:0; }
+.payer-bar-wrap { background:var(--border);border-radius:4px;height:5px;margin-top:4px;overflow:hidden;width:80px; }
+.payer-bar { height:100%;border-radius:4px;transition:width 0.4s ease;background:var(--expense); }
+.payer-amount { font-family:'Nunito',sans-serif;font-size:0.9rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--expense);text-align:right;white-space:nowrap; }
+.payer-count { font-size:0.7rem;color:var(--fg-muted);white-space:nowrap; }
+
+/* ════════════════════════════
+   SETTINGS PAGE
+   ════════════════════════════ */
+
+/* Section divider */
+.setting-section { margin-bottom: 0; }
+
+/* Row item (account or category) */
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  animation: fadeSlide 0.2s ease;
+}
+.item-row:last-child { border-bottom: none; }
+
+.item-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.item-label { flex: 1; min-width: 0; }
+.item-name { font-size: 0.92rem; font-weight: 600; }
+.item-sub  { font-size: 0.72rem; color: var(--fg-muted); margin-top: 1px; }
+
+.item-default-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 2px 7px;
+  flex-shrink: 0;
+}
+
+.btn-item-del {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 1rem;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.14s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.btn-item-del:hover { background: var(--expense-light); color: var(--expense); }
+
+/* Add row controls */
+.add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.ctrl-input {
+  flex: 1;
+  min-width: 80px;
+}
+.ctrl-select {
+  min-width: 110px;
+  flex-shrink: 0;
+}
+.btn-add {
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 9px 14px;
+  white-space: nowrap;
+  transition: opacity 0.14s;
+  flex-shrink: 0;
+}
+.btn-add:hover { opacity: 0.88; }
+
+/* Emoji + name row */
+.emoji-name-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+}
+.emoji-input {
+  text-align: center;
+  font-size: 1.2rem;
+  padding: 8px 4px !important;
+}
+
+/* Color picker presets */
+.color-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.color-dot {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+}
+.color-dot:hover { transform: scale(1.15); }
+.color-dot.selected { border-color: var(--fg); transform: scale(1.15); }
+
+/* Settings type tabs */
+.setting-tabs {
+  display: flex;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 16px;
+}
+.setting-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 9px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--fg-muted);
+  transition: all 0.16s;
+}
+.setting-tab.active-expense { background: var(--expense-light); color: var(--expense); }
+.setting-tab.active-income  { background: var(--income-light);  color: var(--income); }
+
+/* Add form card inside settings */
+.add-card {
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 14px;
+}
+.add-card-title {
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-muted);
+  margin-bottom: 10px;
+}
+</style>
+
+<!-- ══════ MAIN PAGE ══════ -->
+<div class="page active" id="pageMain">
+
+  <header class="app-header">
+    <div class="header-top">
+      <div class="app-name">💰 我的記帳本</div>
+      <div class="header-controls">
+        <select id="monthPicker"></select>
+        <button class="hdr-btn" id="themeBtn">🌗</button>
+      </div>
+    </div>
+    <div class="balance-block">
+      <div class="balance-label">本月結餘</div>
+      <div class="balance-amount" id="balanceDisplay">NT$ 0</div>
+    </div>
+  </header>
+
+  <div class="summary-strip">
+    <div class="summ-card"><div class="summ-label">💰 收入</div><div class="summ-amount inc" id="incomeTotal">NT$ 0</div></div>
+    <div class="summ-card"><div class="summ-label">💸 支出</div><div class="summ-amount exp" id="expenseTotal">NT$ 0</div></div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- Add Transaction -->
+    <div class="panel">
+      <div class="panel-title">新增記錄</div>
+      <div class="type-toggle">
+        <button class="type-btn active-expense" id="btnExpense" onclick="setType('expense')">💸 支出</button>
+        <button class="type-btn" id="btnIncome" onclick="setType('income')">💰 收入</button>
+      </div>
+      <div class="field-group">
+        <div class="field">
+          <label>金額 (NT$)</label>
+          <input type="number" id="amountInput" placeholder="0" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>日期</label>
+          <input type="date" id="dateInput">
+        </div>
+        <div class="field">
+          <label>帳戶</label>
+          <select id="accountInput"></select>
+        </div>
+        <div class="field">
+          <label>付款人</label>
+          <input type="text" id="payerInput" list="payerList" placeholder="我" maxlength="20" autocomplete="off">
+          <datalist id="payerList"></datalist>
+        </div>
+      </div>
+      <div class="field-label">分類標籤</div>
+      <div class="cat-grid" id="catGrid"></div>
+      <div class="note-wrap">
+        <label for="noteInput">備註</label>
+        <textarea id="noteInput" placeholder="輸入備註（選填）"></textarea>
+      </div>
+      <button class="btn-submit" onclick="addTransaction()">＋ 新增記錄</button>
+    </div>
+
+    <!-- Transaction List -->
+    <div class="panel">
+      <div class="panel-title">本月明細</div>
+      <div class="tx-list" id="txList"></div>
+    </div>
+
+    <!-- Chart -->
+    <div class="panel">
+      <div class="panel-title">統計圖表</div>
+      <div class="chart-tabs">
+        <button class="chart-tab active" id="tabExp" onclick="setChartTab('expense')">支出分佈</button>
+        <button class="chart-tab" id="tabInc" onclick="setChartTab('income')">收支比較</button>
+        <button class="chart-tab" id="tabPayer" onclick="setChartTab('payer')">付款人</button>
+      </div>
+      <div id="chartArea">
+        <div class="chart-holder"><canvas id="mainChart"></canvas></div>
+        <div class="chart-legend" id="chartLegend"></div>
+      </div>
+      <div id="payerTableArea" hidden>
+        <table class="payer-tbl" id="payerTable">
+          <thead><tr><th>付款人</th><th>筆數</th><th style="text-align:right">支出金額</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════ SETTINGS PAGE ══════ -->
+<div class="page" id="pageSettings">
+
+  <header class="settings-header">
+    <div class="settings-title">⚙️ 設定</div>
+    <button class="hdr-btn" id="themeBtnS">🌗</button>
+  </header>
+
+  <div class="page-body">
+
+    <!-- Account Management -->
+    <div class="panel">
+      <div class="panel-title">帳戶管理</div>
+      <div id="accList"></div>
+
+      <div class="add-card">
+        <div class="add-card-title">新增帳戶</div>
+        <div class="add-row">
+          <input type="text" class="ctrl-input" id="newAccName" placeholder="帳戶名稱" maxlength="20">
+          <select class="ctrl-select" id="newAccType">
+            <option value="cash">💵 現金</option>
+            <option value="bank">🏦 銀行</option>
+            <option value="credit">💳 信用卡</option>
+          </select>
+          <button class="btn-add" onclick="addAccount()">＋ 新增</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Management -->
+    <div class="panel">
+      <div class="panel-title">分類標籤管理</div>
+      <div class="setting-tabs">
+        <button class="setting-tab active-expense" id="sTabExp" onclick="setSettingType('expense')">💸 支出分類</button>
+        <button class="setting-tab" id="sTabInc" onclick="setSettingType('income')">💰 收入分類</button>
+      </div>
+      <div id="catSettingList"></div>
+
+      <div class="add-card">
+        <div class="add-card-title">新增分類</div>
+        <div class="emoji-name-row" style="margin-bottom:10px">
+          <input type="text" class="ctrl-input emoji-input" id="newCatEmoji" placeholder="😀" maxlength="2">
+          <input type="text" class="ctrl-input" id="newCatName" placeholder="分類名稱" maxlength="10">
+        </div>
+        <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--fg-muted);margin-bottom:6px">選擇顏色</div>
+        <div class="color-presets" id="colorPresets"></div>
+        <div style="margin-top:12px">
+          <button class="btn-add" style="width:100%" onclick="addCategory()">＋ 新增分類</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════ BOTTOM NAV ══════ -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="navMain" onclick="goPage('main')">
+    <span class="nav-icon">💰</span>
+    <span class="nav-label">記帳</span>
+  </button>
+  <button class="nav-btn" id="navSettings" onclick="goPage('settings')">
+    <span class="nav-icon">⚙️</span>
+    <span class="nav-label">設定</span>
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══════ JAVASCRIPT ══════ -->
+<script>
+// ── Default data ──
+const DEFAULT_EXPENSE_CATS = [
+  { name:'餐飲', emoji:'🍜', color:'#f59e0b' },
+  { name:'交通', emoji:'🚌', color:'#3b82f6' },
+  { name:'購物', emoji:'🛍️', color:'#ec4899' },
+  { name:'娛樂', emoji:'🎮', color:'#10b981' },
+  { name:'醫療', emoji:'💊', color:'#8b5cf6' },
+  { name:'教育', emoji:'📚', color:'#06b6d4' },
+  { name:'住房', emoji:'🏠', color:'#ef4444' },
+  { name:'水電', emoji:'💡', color:'#84cc16' },
+  { name:'訂閱', emoji:'📱', color:'#f97316' },
+  { name:'其他', emoji:'🎁', color:'#6366f1' },
+];
+const DEFAULT_INCOME_CATS = [
+  { name:'薪資', emoji:'💼', color:'#16a34a' },
+  { name:'獎金', emoji:'🎯', color:'#f59e0b' },
+  { name:'投資', emoji:'📈', color:'#3b82f6' },
+  { name:'副業', emoji:'💻', color:'#8b5cf6' },
+  { name:'補助', emoji:'🏛️', color:'#06b6d4' },
+  { name:'其他', emoji:'🎁', color:'#6b7280' },
+];
+const DEFAULT_ACCOUNTS = [
+  { name:'現金',   type:'cash'   },
+  { name:'信用卡', type:'credit' },
+];
+const PRESET_COLORS = [
+  '#f59e0b','#f97316','#ef4444','#e11d48','#ec4899',
+  '#a855f7','#8b5cf6','#6366f1','#3b82f6','#06b6d4',
+  '#10b981','#84cc16',
+];
+const ACC_ICON = { cash:'💵', bank:'🏦', credit:'💳' };
+const ACC_LABEL = { cash:'現金', bank:'銀行帳戶', credit:'信用卡' };
+
+// ── State ──
+let state = {
+  transactions:  [],
+  accounts:      JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS)),
+  expenseCats:   JSON.parse(JSON.stringify(DEFAULT_EXPENSE_CATS)),
+  incomeCats:    JSON.parse(JSON.stringify(DEFAULT_INCOME_CATS)),
+  selectedMonth: new Date().toISOString().slice(0,7),
+  currentType:   'expense',
+  currentCat:    null,
+  chartTab:      'expense',
+  settingType:   'expense',
+  selectedColor: PRESET_COLORS[0],
+  theme:         'system',
+  activePage:    'main',
+  knownPayers:   ['我'],
+};
+let chartInstance = null;
+
+// ── Helpers ──
+const $ = id => document.getElementById(id);
+const fmt = n => 'NT$ ' + Math.round(Math.abs(n)).toLocaleString('zh-TW');
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2300);
+}
+function getCatMeta(type, name) {
+  const list = type === 'expense' ? state.expenseCats : state.incomeCats;
+  return list.find(c => c.name === name) || { emoji:'📌', color:'#6366f1' };
+}
+
+// ── Persistence ──
+function save() {
+  try {
+    localStorage.setItem('myLedger_v4', JSON.stringify({
+      transactions: state.transactions,
+      accounts:     state.accounts,
+      expenseCats:  state.expenseCats,
+      incomeCats:   state.incomeCats,
+      theme:        state.theme,
+      knownPayers:  state.knownPayers,
+    }));
+  } catch(e) {}
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem('myLedger_v4') || 'null');
+    if (d) {
+      state.transactions = Array.isArray(d.transactions) ? d.transactions : [];
+      state.accounts     = Array.isArray(d.accounts)     ? d.accounts     : JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+      state.expenseCats  = Array.isArray(d.expenseCats)  ? d.expenseCats  : JSON.parse(JSON.stringify(DEFAULT_EXPENSE_CATS));
+      state.incomeCats   = Array.isArray(d.incomeCats)   ? d.incomeCats   : JSON.parse(JSON.stringify(DEFAULT_INCOME_CATS));
+      state.theme        = d.theme || 'system';
+      state.knownPayers  = Array.isArray(d.knownPayers) ? d.knownPayers : ['我'];
+    }
+  } catch(e) {}
+}
+
+// ── Theme ──
+const THEME_CYCLE = ['system','light','dark'];
+const THEME_ICON  = { system:'🌗', light:'☀️', dark:'🌙' };
+function applyTheme() {
+  const root = document.documentElement;
+  if (state.theme === 'dark')       root.setAttribute('data-theme','dark');
+  else if (state.theme === 'light') root.setAttribute('data-theme','light');
+  else                              root.removeAttribute('data-theme');
+  $('themeBtn').textContent  = THEME_ICON[state.theme];
+  $('themeBtnS').textContent = THEME_ICON[state.theme];
+}
+function cycleTheme() {
+  const i = THEME_CYCLE.indexOf(state.theme);
+  state.theme = THEME_CYCLE[(i+1) % THEME_CYCLE.length];
+  applyTheme(); save(); renderChart();
+}
+$('themeBtn').onclick  = cycleTheme;
+$('themeBtnS').onclick = cycleTheme;
+
+// ── Navigation ──
+function goPage(name) {
+  state.activePage = name;
+  $('pageMain').classList.toggle('active', name === 'main');
+  $('pageSettings').classList.toggle('active', name === 'settings');
+  $('navMain').classList.toggle('active', name === 'main');
+  $('navSettings').classList.toggle('active', name === 'settings');
+  if (name === 'settings') renderSettings();
+}
+
+// ── Month picker ──
+function buildMonthOptions() {
+  const sel = $('monthPicker');
+  sel.innerHTML = '';
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const opt = new Option(`${d.getFullYear()}年${String(d.getMonth()+1).padStart(2,'0')}月`, val);
+    if (val === state.selectedMonth) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+$('monthPicker').onchange = e => { state.selectedMonth = e.target.value; render(); };
+
+// ── Type toggle (form) ──
+function setType(t) {
+  state.currentType = t;
+  state.currentCat  = null;
+  $('btnExpense').className = 'type-btn' + (t==='expense' ? ' active-expense' : '');
+  $('btnIncome').className  = 'type-btn' + (t==='income'  ? ' active-income'  : '');
+  renderCatGrid();
+}
+
+// ── Category chips (form) ──
+function renderCatGrid() {
+  const grid = $('catGrid');
+  grid.innerHTML = '';
+  const cats = state.currentType === 'expense' ? state.expenseCats : state.incomeCats;
+  cats.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-chip' + (state.currentCat === c.name ? ' sel' : '');
+    if (state.currentCat === c.name) btn.style.cssText = `background:${c.color};border-color:${c.color}`;
+    btn.textContent = `${c.emoji} ${c.name}`;
+    btn.onclick = () => { state.currentCat = state.currentCat === c.name ? null : c.name; renderCatGrid(); };
+    grid.appendChild(btn);
+  });
+}
+
+// ── Account select (form) ──
+function renderAccountSelect() {
+  const sel = $('accountInput');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  state.accounts.forEach(a => {
+    const icon = ACC_ICON[a.type] || '💳';
+    const o = new Option(`${icon} ${a.name}`, a.name);
+    if (a.name === prev) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+// ── Add transaction ──
+function addTransaction() {
+  const amount = parseFloat($('amountInput').value);
+  const date   = $('dateInput').value;
+  const acct   = $('accountInput').value;
+  const note   = $('noteInput').value.trim();
+  const cat    = state.currentCat;
+  const payer  = $('payerInput').value.trim() || '我';
+  if (!amount || amount <= 0) { showToast('⚠️ 請輸入有效金額'); return; }
+  if (!date)                  { showToast('⚠️ 請選擇日期');     return; }
+  if (!cat)                   { showToast('⚠️ 請選擇分類標籤'); return; }
+
+  // Remember new payer
+  if (!state.knownPayers.includes(payer)) {
+    state.knownPayers.push(payer);
+    renderPayerDatalist();
+  }
+
+  state.transactions.unshift({
+    id: Date.now().toString(36),
+    type: state.currentType,
+    amount, category: cat, account: acct,
+    date, note: note || cat, payer,
+  });
+
+  const txMonth = date.slice(0,7);
+  state.selectedMonth = txMonth;
+  buildMonthOptions();
+
+  $('amountInput').value = '';
+  $('noteInput').value   = '';
+  $('payerInput').value  = '';
+  state.currentCat = null;
+  renderCatGrid();
+  save(); render();
+  showToast(`✅ 已新增${state.currentType==='expense'?'支出':'收入'}記錄！`);
+}
+
+function deleteTransaction(id) {
+  state.transactions = state.transactions.filter(t => t.id !== id);
+  save(); render();
+  showToast('🗑️ 記錄已刪除');
+}
+
+// ── Summary ──
+function renderSummary() {
+  const txs = state.transactions.filter(t => t.date.slice(0,7) === state.selectedMonth);
+  let inc = 0, exp = 0;
+  txs.forEach(t => t.type==='income' ? inc+=t.amount : exp+=t.amount);
+  const bal = inc - exp;
+  $('balanceDisplay').textContent = (bal>=0?'+':'-') + fmt(bal);
+  $('incomeTotal').textContent  = fmt(inc);
+  $('expenseTotal').textContent = fmt(exp);
+}
+
+// ── Transaction list ──
+function renderTxList() {
+  const list = $('txList');
+  const txs  = state.transactions.filter(t => t.date.slice(0,7) === state.selectedMonth);
+  list.innerHTML = '';
+  if (!txs.length) {
+    list.innerHTML = `<div class="empty-msg"><span class="e">📭</span>本月尚無記錄，從上方新增第一筆吧！</div>`;
+    return;
+  }
+  txs.forEach(tx => {
+    const meta = getCatMeta(tx.type, tx.category);
+    const item = document.createElement('div');
+    item.className = 'tx-item';
+    item.innerHTML = `
+      <div class="tx-icon" style="background:${meta.color}1f">${meta.emoji}</div>
+      <div class="tx-info">
+        <div class="tx-top">
+          <span class="tx-note">${tx.note}</span>
+          <span class="tx-badge" style="background:${meta.color}1f;color:${meta.color}">${tx.category}</span>
+        </div>
+        <div class="tx-meta">${tx.date} · ${tx.account} · 👤 ${tx.payer || '我'}</div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount ${tx.type}">${tx.type==='income'?'+':'-'}${fmt(tx.amount)}</div>
+      </div>
+      <button class="btn-del" title="刪除" onclick="deleteTransaction('${tx.id}')">✕</button>
+    `;
+    list.appendChild(item);
+  });
+}
+
+// ── Payer datalist ──
+function renderPayerDatalist() {
+  const dl = $('payerList');
+  dl.innerHTML = '';
+  state.knownPayers.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    dl.appendChild(opt);
+  });
+}
+
+// ── Payer table ──
+function renderPayerTable() {
+  const txs = state.transactions.filter(t => t.date.slice(0,7) === state.selectedMonth && t.type === 'expense');
+  const map = {};
+  txs.forEach(t => {
+    const p = t.payer || '我';
+    if (!map[p]) map[p] = { total: 0, count: 0 };
+    map[p].total += t.amount;
+    map[p].count++;
+  });
+  const entries = Object.entries(map).sort((a,b) => b[1].total - a[1].total);
+  const maxAmt = entries.length ? entries[0][1].total : 1;
+  const tbody = $('payerTable').querySelector('tbody');
+  tbody.innerHTML = '';
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-msg" style="text-align:center;padding:20px 0"><span>📊</span> 本月尚無支出資料</td></tr>`;
+    return;
+  }
+  entries.forEach(([name, data]) => {
+    const initials = Array.from(name)[0] || '?';
+    const pct = Math.round((data.total / maxAmt) * 100);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="payer-cell-name">
+          <div class="payer-avatar">${initials}</div>
+          <div>
+            <div style="font-size:0.88rem;font-weight:600">${name}</div>
+            <div class="payer-bar-wrap"><div class="payer-bar" style="width:${pct}%"></div></div>
+          </div>
+        </div>
+      </td>
+      <td class="payer-count" style="text-align:center">${data.count} 筆</td>
+      <td class="payer-amount">${fmt(data.total)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Chart ──
+function isDark() {
+  const dt = document.documentElement.getAttribute('data-theme');
+  if (dt==='dark') return true; if (dt==='light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function setChartTab(tab) {
+  state.chartTab = tab;
+  $('tabExp').className   = 'chart-tab' + (tab==='expense' ? ' active' : '');
+  $('tabInc').className   = 'chart-tab' + (tab==='income'  ? ' active' : '');
+  $('tabPayer').className = 'chart-tab' + (tab==='payer'   ? ' active' : '');
+  if (tab === 'payer') {
+    $('chartArea').hidden      = true;
+    $('payerTableArea').hidden = false;
+    renderPayerTable();
+  } else {
+    $('chartArea').hidden      = false;
+    $('payerTableArea').hidden = true;
+    renderChart();
+  }
+}
+function renderChart() {
+  const txs = state.transactions.filter(t => t.date.slice(0,7) === state.selectedMonth);
+  const ctx = $('mainChart').getContext('2d');
+  const legend = $('chartLegend');
+  const tc = isDark() ? '#9490c0' : '#7a759f';
+  const surfBg = isDark() ? '#16122e' : '#ffffff';
+  const gridC  = isDark() ? '#2a254d' : '#e2ddf7';
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  legend.innerHTML = '';
+  const tipDefaults = {
+    bodyColor:tc, titleColor:tc, backgroundColor:surfBg,
+    borderColor:gridC, borderWidth:1, padding:10, cornerRadius:10,
+  };
+  if (state.chartTab === 'expense') {
+    const catMap = {};
+    txs.filter(t=>t.type==='expense').forEach(t => { catMap[t.category]=(catMap[t.category]||0)+t.amount; });
+    const cats = Object.keys(catMap);
+    if (!cats.length) {
+      legend.innerHTML='<div style="text-align:center;color:var(--fg-muted);font-size:0.82rem;padding:20px 0">本月尚無支出資料 📊</div>';
+      return;
+    }
+    const total = cats.reduce((s,c)=>s+catMap[c],0);
+    const colors = cats.map(c => (state.expenseCats.find(e=>e.name===c)||{color:'#6366f1'}).color);
+    const emojis = cats.map(c => (state.expenseCats.find(e=>e.name===c)||{emoji:'📌'}).emoji);
+    chartInstance = new Chart(ctx, {
+      type:'doughnut',
+      data:{ labels:cats, datasets:[{ data:cats.map(c=>catMap[c]), backgroundColor:colors, borderWidth:0, hoverOffset:10 }] },
+      options:{
+        plugins:{ legend:{display:false}, tooltip:{...tipDefaults, callbacks:{label:c=>` NT$${Math.round(c.parsed).toLocaleString()}（${((c.parsed/total)*100).toFixed(1)}%）`}} },
+        cutout:'66%', animation:{duration:400},
+      }
+    });
+    cats.forEach((c,i) => {
+      const el = document.createElement('div');
+      el.className = 'legend-item';
+      el.innerHTML = `<div class="legend-dot" style="background:${colors[i]}"></div>${emojis[i]} ${c}`;
+      legend.appendChild(el);
+    });
+  } else {
+    const inc = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const exp = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    chartInstance = new Chart(ctx, {
+      type:'bar',
+      data:{ labels:['💰 收入','💸 支出'], datasets:[{ data:[inc,exp], backgroundColor:['#16a34a','#e11d48'], borderRadius:12, barThickness:60 }] },
+      options:{
+        plugins:{ legend:{display:false}, tooltip:{...tipDefaults, callbacks:{label:c=>` ${fmt(c.parsed.y)}`}} },
+        scales:{
+          y:{ ticks:{color:tc,callback:v=>'NT$'+(v>=1000?Math.round(v/1000)+'k':v.toLocaleString())}, grid:{color:gridC}, beginAtZero:true },
+          x:{ ticks:{color:tc}, grid:{display:false} }
+        },
+        animation:{duration:400},
+      }
+    });
+  }
+}
+
+// ════════════════════════════
+// SETTINGS PAGE
+// ════════════════════════════
+
+function renderSettings() {
+  renderAccList();
+  renderCatSettingList();
+  renderColorPresets();
+}
+
+// ── Account list (settings) ──
+function renderAccList() {
+  const list = $('accList');
+  list.innerHTML = '';
+  state.accounts.forEach((acc, i) => {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    const isDefault = i < 2;
+    row.innerHTML = `
+      <div class="item-icon" style="background:${isDefault ? 'var(--accent-soft)' : 'var(--bg)'}">
+        ${ACC_ICON[acc.type] || '💳'}
+      </div>
+      <div class="item-label">
+        <div class="item-name">${acc.name}</div>
+        <div class="item-sub">${ACC_LABEL[acc.type] || '帳戶'}</div>
+      </div>
+      ${isDefault ? '<span class="item-default-badge">預設</span>' : ''}
+      <button class="btn-item-del" title="刪除帳戶" onclick="deleteAccount(${i})">🗑️</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addAccount() {
+  const name = $('newAccName').value.trim();
+  const type = $('newAccType').value;
+  if (!name) { showToast('⚠️ 請輸入帳戶名稱'); return; }
+  if (state.accounts.find(a => a.name === name)) { showToast('⚠️ 帳戶名稱已存在'); return; }
+  state.accounts.push({ name, type });
+  $('newAccName').value = '';
+  save();
+  renderAccList();
+  renderAccountSelect();
+  showToast(`✅ 已新增帳戶「${name}」`);
+}
+
+function deleteAccount(i) {
+  const name = state.accounts[i].name;
+  state.accounts.splice(i, 1);
+  save();
+  renderAccList();
+  renderAccountSelect();
+  showToast(`🗑️ 帳戶「${name}」已刪除`);
+}
+$('newAccName').onkeydown = e => { if (e.key==='Enter') addAccount(); };
+
+// ── Category list (settings) ──
+function setSettingType(t) {
+  state.settingType = t;
+  $('sTabExp').className = 'setting-tab' + (t==='expense' ? ' active-expense' : '');
+  $('sTabInc').className = 'setting-tab' + (t==='income'  ? ' active-income'  : '');
+  renderCatSettingList();
+}
+
+function renderCatSettingList() {
+  const list = $('catSettingList');
+  list.innerHTML = '';
+  const cats = state.settingType === 'expense' ? state.expenseCats : state.incomeCats;
+  if (!cats.length) {
+    list.innerHTML = '<div class="empty-msg" style="padding:16px 0"><span class="e">🏷️</span>尚無分類，從下方新增</div>';
+    return;
+  }
+  cats.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `
+      <div class="item-icon" style="background:${c.color}1f">${c.emoji}</div>
+      <div class="item-label">
+        <div class="item-name">${c.name}</div>
+      </div>
+      <div class="legend-dot" style="background:${c.color};width:14px;height:14px;border-radius:50%;flex-shrink:0"></div>
+      <button class="btn-item-del" title="刪除分類" onclick="deleteCategory(${i})">🗑️</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderColorPresets() {
+  const wrap = $('colorPresets');
+  wrap.innerHTML = '';
+  PRESET_COLORS.forEach(col => {
+    const dot = document.createElement('div');
+    dot.className = 'color-dot' + (state.selectedColor === col ? ' selected' : '');
+    dot.style.background = col;
+    dot.title = col;
+    dot.onclick = () => {
+      state.selectedColor = col;
+      wrap.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+      dot.classList.add('selected');
+    };
+    wrap.appendChild(dot);
+  });
+}
+
+function addCategory() {
+  const emoji = ($('newCatEmoji').value.trim() || '🏷️');
+  const name  = $('newCatName').value.trim();
+  const color = state.selectedColor;
+  if (!name) { showToast('⚠️ 請輸入分類名稱'); return; }
+  const list = state.settingType === 'expense' ? state.expenseCats : state.incomeCats;
+  if (list.find(c => c.name === name)) { showToast('⚠️ 分類名稱已存在'); return; }
+  list.push({ name, emoji, color });
+  $('newCatEmoji').value = '';
+  $('newCatName').value  = '';
+  save();
+  renderCatSettingList();
+  renderCatGrid();
+  showToast(`✅ 已新增分類「${emoji} ${name}」`);
+}
+
+function deleteCategory(i) {
+  const list = state.settingType === 'expense' ? state.expenseCats : state.incomeCats;
+  const name = list[i].name;
+  list.splice(i, 1);
+  if (state.currentCat === name) state.currentCat = null;
+  save();
+  renderCatSettingList();
+  renderCatGrid();
+  showToast(`🗑️ 分類「${name}」已刪除`);
+}
+
+$('newCatName').onkeydown = e => { if (e.key==='Enter') addCategory(); };
+
+// ── Main render ──
+function render() {
+  renderSummary();
+  renderTxList();
+  if (state.chartTab === 'payer') renderPayerTable();
+  else renderChart();
+}
+
+// ── Seed samples ──
+function seedSamples() {
+  const today = new Date();
+  const d = off => {
+    const t = new Date(today); t.setDate(t.getDate()-off);
+    return t.toISOString().slice(0,10);
+  };
+  state.knownPayers = ['我', '小明', '小美'];
+  state.transactions = [
+    { id:'s1', type:'income',  amount:45000, category:'薪資', account:'現金',   date:d(14), note:'十月薪資',    payer:'我'  },
+    { id:'s2', type:'expense', amount:280,   category:'餐飲', account:'現金',   date:d(12), note:'午餐外食',    payer:'小明' },
+    { id:'s3', type:'expense', amount:1200,  category:'購物', account:'信用卡', date:d(10), note:'網購生活用品', payer:'我'  },
+    { id:'s4', type:'expense', amount:500,   category:'交通', account:'信用卡', date:d(8),  note:'加油費',      payer:'小明' },
+    { id:'s5', type:'expense', amount:399,   category:'訂閱', account:'信用卡', date:d(6),  note:'串流平台',    payer:'我'  },
+    { id:'s6', type:'income',  amount:5000,  category:'副業', account:'現金',   date:d(5),  note:'接案收入',    payer:'我'  },
+    { id:'s7', type:'expense', amount:850,   category:'娛樂', account:'信用卡', date:d(3),  note:'電影＋餐敘',  payer:'小美' },
+    { id:'s8', type:'expense', amount:320,   category:'餐飲', account:'現金',   date:d(1),  note:'早午餐',      payer:'我'  },
+  ];
+}
+
+// ── Init ──
+function init() {
+  load();
+  applyTheme();
+  $('dateInput').value = new Date().toISOString().slice(0,10);
+  if (state.transactions.length === 0) seedSamples();
+  save();
+  buildMonthOptions();
+  renderAccountSelect();
+  renderPayerDatalist();
+  renderColorPresets();
+  setType('expense');
+  render();
+}
+
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (state.theme === 'system') renderChart();
+});
+window.addEventListener('load', init);
+</script>

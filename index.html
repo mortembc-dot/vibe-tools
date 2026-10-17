@@ -262,6 +262,14 @@ body {
 .payer-bar { height:100%;border-radius:4px;transition:width 0.4s ease;background:var(--expense); }
 .payer-amount { font-family:'Nunito',sans-serif;font-size:0.9rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--expense);text-align:right;white-space:nowrap; }
 .payer-count { font-size:0.7rem;color:var(--fg-muted);white-space:nowrap; }
+/* ── Color Theme Picker ── */
+.theme-swatch-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px; }
+.theme-swatch { display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:10px 6px;border-radius:14px;border:2px solid transparent;transition:border-color 0.2s,background 0.15s; }
+.theme-swatch:hover { background:var(--border); }
+.theme-swatch.active { border-color:var(--accent); }
+.theme-swatch-circle { width:44px;height:44px;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.18);position:relative;overflow:hidden; }
+.theme-swatch-name { font-size:0.72rem;font-weight:700;color:var(--fg-muted);text-align:center; }
+.theme-swatch.active .theme-swatch-name { color:var(--accent); }
 
 /* ════════════════════════════
    SETTINGS PAGE
@@ -562,6 +570,12 @@ body {
       </div>
     </div>
 
+    <!-- Color Theme Picker -->
+    <div class="panel">
+      <div class="panel-title">網頁顏色主題</div>
+      <div class="theme-swatch-grid" id="themeSwatchGrid"></div>
+    </div>
+
   </div>
 </div>
 
@@ -629,6 +643,7 @@ let state = {
   theme:         'system',
   activePage:    'main',
   knownPayers:   ['我'],
+  colorTheme:    'default',
 };
 let chartInstance = null;
 
@@ -657,6 +672,7 @@ function save() {
       incomeCats:   state.incomeCats,
       theme:        state.theme,
       knownPayers:  state.knownPayers,
+      colorTheme:   state.colorTheme,
     }));
   } catch(e) {}
 }
@@ -668,10 +684,43 @@ function load() {
       state.accounts     = Array.isArray(d.accounts)     ? d.accounts     : JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
       state.expenseCats  = Array.isArray(d.expenseCats)  ? d.expenseCats  : JSON.parse(JSON.stringify(DEFAULT_EXPENSE_CATS));
       state.incomeCats   = Array.isArray(d.incomeCats)   ? d.incomeCats   : JSON.parse(JSON.stringify(DEFAULT_INCOME_CATS));
-      state.theme        = d.theme || 'system';
-      state.knownPayers  = Array.isArray(d.knownPayers) ? d.knownPayers : ['我'];
+      state.theme       = d.theme || 'system';
+      state.knownPayers = Array.isArray(d.knownPayers) ? d.knownPayers : ['我'];
+      state.colorTheme  = d.colorTheme || 'default';
     }
   } catch(e) {}
+}
+
+// ── Color Themes ──
+const COLOR_THEMES = {
+  default: { name:'預設紫', light:{ bg:'#f5f3ff',card:'#ffffff',fg:'#1e1b4b',fgMuted:'#6b7280',border:'#e5e7eb',accent:'#7c3aed',accentSoft:'#ede9fe',hdrA:'#4c1d95',hdrB:'#7c3aed',expense:'#e11d48',expenseLight:'#ffe4e6',income:'#16a34a',incomeLight:'#dcfce7' }, dark:{ bg:'#0f0a1e',card:'#1a1535',fg:'#e2e8f0',fgMuted:'#94a3b8',border:'#2a254d',accent:'#a78bfa',accentSoft:'#1e1444',hdrA:'#3b0764',hdrB:'#4c1d95',expense:'#fb7185',expenseLight:'#200a12',income:'#4ade80',incomeLight:'#052e16' } },
+  blue:    { name:'海洋藍', light:{ bg:'#eff6ff',card:'#ffffff',fg:'#1e3a8a',fgMuted:'#6b7280',border:'#dbeafe',accent:'#1d4ed8',accentSoft:'#dbeafe',hdrA:'#1e3a8a',hdrB:'#1d4ed8',expense:'#dc2626',expenseLight:'#fee2e2',income:'#059669',incomeLight:'#d1fae5' }, dark:{ bg:'#0a1628',card:'#111e38',fg:'#e2e8f0',fgMuted:'#94a3b8',border:'#1e3a8a',accent:'#60a5fa',accentSoft:'#1e2d5e',hdrA:'#1e3a8a',hdrB:'#1d4ed8',expense:'#f87171',expenseLight:'#3b0a0a',income:'#34d399',incomeLight:'#022c22' } },
+  green:   { name:'森林綠', light:{ bg:'#f0fdf4',card:'#ffffff',fg:'#14532d',fgMuted:'#6b7280',border:'#d1fae5',accent:'#15803d',accentSoft:'#dcfce7',hdrA:'#14532d',hdrB:'#15803d',expense:'#b91c1c',expenseLight:'#fee2e2',income:'#0f766e',incomeLight:'#ccfbf1' }, dark:{ bg:'#0a1a0f',card:'#0f2318',fg:'#d1fae5',fgMuted:'#86efac',border:'#166534',accent:'#4ade80',accentSoft:'#052e16',hdrA:'#14532d',hdrB:'#166534',expense:'#f87171',expenseLight:'#3b0a0a',income:'#2dd4bf',incomeLight:'#042f2e' } },
+  orange:  { name:'日落橘', light:{ bg:'#fff7ed',card:'#ffffff',fg:'#7c2d12',fgMuted:'#6b7280',border:'#fed7aa',accent:'#c2410c',accentSoft:'#ffedd5',hdrA:'#7c2d12',hdrB:'#c2410c',expense:'#be123c',expenseLight:'#ffe4e6',income:'#047857',incomeLight:'#d1fae5' }, dark:{ bg:'#180d04',card:'#271407',fg:'#fed7aa',fgMuted:'#fdba74',border:'#7c2d12',accent:'#fb923c',accentSoft:'#3b1608',hdrA:'#7c2d12',hdrB:'#9a3412',expense:'#fb7185',expenseLight:'#200a12',income:'#34d399',incomeLight:'#022c22' } },
+  rose:    { name:'玫瑰粉', light:{ bg:'#fdf2f8',card:'#ffffff',fg:'#831843',fgMuted:'#6b7280',border:'#fbcfe8',accent:'#be185d',accentSoft:'#fce7f3',hdrA:'#831843',hdrB:'#be185d',expense:'#b91c1c',expenseLight:'#fee2e2',income:'#0f766e',incomeLight:'#ccfbf1' }, dark:{ bg:'#160a10',card:'#240f1a',fg:'#fce7f3',fgMuted:'#f9a8d4',border:'#9d174d',accent:'#f472b6',accentSoft:'#3d0a26',hdrA:'#831843',hdrB:'#9d174d',expense:'#f87171',expenseLight:'#3b0a0a',income:'#2dd4bf',incomeLight:'#042f2e' } },
+  slate:   { name:'簡約灰', light:{ bg:'#f8fafc',card:'#ffffff',fg:'#0f172a',fgMuted:'#64748b',border:'#e2e8f0',accent:'#475569',accentSoft:'#f1f5f9',hdrA:'#1e293b',hdrB:'#334155',expense:'#dc2626',expenseLight:'#fee2e2',income:'#16a34a',incomeLight:'#dcfce7' }, dark:{ bg:'#020617',card:'#0f172a',fg:'#e2e8f0',fgMuted:'#94a3b8',border:'#1e293b',accent:'#94a3b8',accentSoft:'#1e293b',hdrA:'#0f172a',hdrB:'#1e293b',expense:'#f87171',expenseLight:'#3b0a0a',income:'#4ade80',incomeLight:'#052e16' } },
+};
+const THEME_BG_PAIRS = { default:['#7c3aed','#ede9fe'], blue:['#1d4ed8','#dbeafe'], green:['#15803d','#dcfce7'], orange:['#c2410c','#ffedd5'], rose:['#be185d','#fce7f3'], slate:['#334155','#e2e8f0'] };
+
+function applyColorTheme() {
+  const root = document.documentElement;
+  const t = COLOR_THEMES[state.colorTheme] || COLOR_THEMES.default;
+  const isDark = state.theme === 'dark' || (state.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const c = isDark ? t.dark : t.light;
+  Object.entries({ '--bg':c.bg,'--card':c.card,'--fg':c.fg,'--fg-muted':c.fgMuted,'--border':c.border,'--accent':c.accent,'--accent-soft':c.accentSoft,'--hdr-a':c.hdrA,'--hdr-b':c.hdrB,'--expense':c.expense,'--expense-light':c.expenseLight,'--income':c.income,'--income-light':c.incomeLight }).forEach(([k,v]) => root.style.setProperty(k,v));
+}
+function renderThemeSwatches() {
+  const grid = $('themeSwatchGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  Object.entries(COLOR_THEMES).forEach(([key, th]) => {
+    const [c1, c2] = THEME_BG_PAIRS[key];
+    const div = document.createElement('div');
+    div.className = 'theme-swatch' + (state.colorTheme === key ? ' active' : '');
+    div.onclick = () => { state.colorTheme = key; applyColorTheme(); save(); renderThemeSwatches(); showToast(`已切換：${th.name}`); };
+    div.innerHTML = `<div class="theme-swatch-circle" style="background:linear-gradient(135deg,${c1} 50%,${c2} 50%)"></div><div class="theme-swatch-name">${th.name}</div>`;
+    grid.appendChild(div);
+  });
 }
 
 // ── Theme ──
@@ -688,7 +737,7 @@ function applyTheme() {
 function cycleTheme() {
   const i = THEME_CYCLE.indexOf(state.theme);
   state.theme = THEME_CYCLE[(i+1) % THEME_CYCLE.length];
-  applyTheme(); save(); renderChart();
+  applyTheme(); applyColorTheme(); save(); renderChart();
 }
 $('themeBtn').onclick  = cycleTheme;
 $('themeBtnS').onclick = cycleTheme;
@@ -700,7 +749,7 @@ function goPage(name) {
   $('pageSettings').classList.toggle('active', name === 'settings');
   $('navMain').classList.toggle('active', name === 'main');
   $('navSettings').classList.toggle('active', name === 'settings');
-  if (name === 'settings') renderSettings();
+  if (name === 'settings') { renderSettings(); renderThemeSwatches(); }
 }
 
 // ── Month picker ──
@@ -1133,6 +1182,7 @@ function seedSamples() {
 function init() {
   load();
   applyTheme();
+  applyColorTheme();
   $('dateInput').value = new Date().toISOString().slice(0,10);
   save();
   buildMonthOptions();
